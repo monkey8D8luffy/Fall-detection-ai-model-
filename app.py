@@ -88,37 +88,71 @@ footer {visibility: hidden;}
 
 /* ---------- Liquid glass tab bar (top navigation) ---------- */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 6px;
+    position: relative;
+    display: flex;
+    gap: 0;
     background: rgba(255,255,255,0.45);
     backdrop-filter: blur(24px) saturate(200%);
     -webkit-backdrop-filter: blur(24px) saturate(200%);
     border-radius: 100px;
-    padding: 8px;
+    padding: 6px;
     border: 1px solid rgba(255,193,7,0.4);
     box-shadow: 0 8px 30px rgba(255,193,7,0.15);
     width: fit-content;
     margin: 0 auto 1.6rem auto;
+    isolation: isolate; /* keeps the sliding pill's z-index scoped to this bar */
 }
 .stTabs [data-baseweb="tab"] {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
     height: 46px;
     border-radius: 100px !important;
     background-color: transparent;
     color: #8a6d00;
     font-weight: 600;
     font-size: 0.95rem;
-    padding: 0 22px;
-    transition: all 0.25s ease;
+    padding: 0 26px;
+    margin: 0;
+    text-align: center;
+    transition: color 0.35s ease;
 }
 .stTabs [data-baseweb="tab"]:hover {
-    background: rgba(255,193,7,0.15);
+    color: #6b4f00;
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #FFCA28, #FFA000) !important;
+    background-color: transparent !important;
     color: #402d00 !important;
-    box-shadow: 0 4px 18px rgba(255,160,0,0.4);
 }
 .stTabs [data-baseweb="tab-highlight"] { background-color: transparent; }
 .stTabs [data-baseweb="tab-border"] { display: none; }
+
+/* The liquid pill itself: one persistent element that glides & morphs
+   between tabs instead of a background flipping on/off per tab. */
+.stTabs [data-baseweb="tab-list"]::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 6px;
+    bottom: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / 3);
+    border-radius: 100px;
+    background: linear-gradient(135deg, #FFCA28, #FFA000);
+    box-shadow: 0 4px 18px rgba(255,160,0,0.45), inset 0 1px 1px rgba(255,255,255,0.5);
+    transform: translateX(0%) scaleX(1);
+    transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+                width 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.stTabs [data-baseweb="tab-list"]:has([data-baseweb="tab"]:nth-of-type(1)[aria-selected="true"])::after {
+    transform: translateX(0%);
+}
+.stTabs [data-baseweb="tab-list"]:has([data-baseweb="tab"]:nth-of-type(2)[aria-selected="true"])::after {
+    transform: translateX(100%);
+}
+.stTabs [data-baseweb="tab-list"]:has([data-baseweb="tab"]:nth-of-type(3)[aria-selected="true"])::after {
+    transform: translateX(200%);
+}
 
 /* ---------- Glass cards (any st.container(key=...)) ---------- */
 div[class*="st-key-"] {
@@ -166,16 +200,64 @@ div[class*="st-key-"]:hover {
     color: #402d00;
 }
 
-/* ---------- Radio pills ---------- */
+/* ---------- Radio pills (Liquid Glass segmented control) ---------- */
 div[role="radiogroup"] {
+    position: relative;
+    display: flex;
+    gap: 0;
     background: rgba(255,255,255,0.5);
     backdrop-filter: blur(14px);
     border-radius: 100px;
-    padding: 6px 10px;
+    padding: 6px;
     border: 1px solid rgba(255,193,7,0.3);
+    isolation: isolate;
 }
 div[role="radiogroup"] label {
-    margin: 2px 4px;
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    margin: 0;
+    justify-content: center;
+    border-radius: 100px;
+    transition: color 0.35s ease;
+}
+/* Hide the native radio dot — the sliding glass pill communicates selection */
+div[role="radiogroup"] label > div:first-child {
+    width: 0 !important;
+    min-width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    margin: 0 !important;
+    overflow: hidden;
+}
+
+/* The liquid pill: one persistent element that glides & morphs between options */
+div[role="radiogroup"]::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 6px;
+    bottom: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / 3);
+    border-radius: 100px;
+    background: linear-gradient(135deg, #FFCA28, #FFA000);
+    box-shadow: 0 4px 16px rgba(255,160,0,0.4), inset 0 1px 1px rgba(255,255,255,0.5);
+    transform: translateX(0%);
+    transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+div[role="radiogroup"]:has(label:nth-of-type(1) input:checked)::after {
+    transform: translateX(0%);
+}
+div[role="radiogroup"]:has(label:nth-of-type(2) input:checked)::after {
+    transform: translateX(100%);
+}
+div[role="radiogroup"]:has(label:nth-of-type(3) input:checked)::after {
+    transform: translateX(200%);
+}
+div[role="radiogroup"] label:has(input:checked) p,
+div[role="radiogroup"] label:has(input:checked) span {
+    color: #402d00 !important;
 }
 
 /* ---------- Alerts ---------- */
