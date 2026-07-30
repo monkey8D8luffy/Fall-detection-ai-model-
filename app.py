@@ -29,7 +29,7 @@ st.markdown("""
 def load_assets():
     yolo = YOLO('yolov8n-pose.pt')
     # Load your trained 20-frame temporal model artifact
-    model_path = 'elderly_fall_20frame_model.pkl'
+    model_path = 'elderly_fall_20frame_compressed.pkl'
     if not os.path.exists(model_path):
         model_path = 'elderly_fall_true_multi_model.pkl'  # Fallback filename check
     model = joblib.load(model_path)
