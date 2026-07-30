@@ -205,6 +205,66 @@ div[role="radiogroup"] label {
     font-size: 0.85rem;
     color: #6b5300;
 }
+
+/* ============================================================
+   FORCED TEXT CONTRAST
+   Some Streamlit deployments default to a light/white base text
+   color, which disappears against these light glass cards. The
+   rules below force a dark, readable color everywhere regardless
+   of the underlying theme.
+   ============================================================ */
+
+/* Markdown headings, paragraphs, lists, bold/italic text */
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4,
+[data-testid="stMarkdownContainer"] h5,
+[data-testid="stMarkdownContainer"] h6 {
+    color: #6b4f00 !important;
+}
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stMarkdownContainer"] strong,
+[data-testid="stMarkdownContainer"] em {
+    color: #4a3800 !important;
+}
+[data-testid="stMarkdownContainer"] code {
+    color: #a86b00 !important;
+    background: rgba(255,193,7,0.18) !important;
+}
+
+/* Alerts (st.info / st.success / st.warning / st.error) */
+div[data-testid="stAlert"] * {
+    color: #402d00 !important;
+}
+
+/* Tab bar labels (inactive + active) */
+.stTabs [data-baseweb="tab"] p {
+    color: #8a6d00 !important;
+    font-weight: 600 !important;
+}
+.stTabs [aria-selected="true"] p {
+    color: #402d00 !important;
+}
+
+/* Radio pill labels */
+div[role="radiogroup"] label p,
+div[role="radiogroup"] label span {
+    color: #5c4400 !important;
+}
+
+/* File uploader helper text */
+[data-testid="stFileUploaderDropzone"] * {
+    color: #6b5300 !important;
+}
+
+/* Generic fallback for any remaining plain text in the app */
+.stApp p, .stApp li, .stApp label, .stApp span {
+    color: #4a3800;
+}
 </style>
 """, unsafe_allow_html=True)
 
