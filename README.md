@@ -1,4 +1,4 @@
-# 🛡️ AI-Powered Elderly Fall Detection System (FA-2)
+# 🛡️ AI-Powered Elderly Fall Detection System 
 
 ## Project Overview
 Developed as part of the International Baccalaureate Career-related Programme (IBCP) Artificial Intelligence coursework, this project builds and deploys an end-to-end computer vision and machine learning healthcare monitoring dashboard[span_11](start_span)[span_11](end_span). The system detects elderly postures, tracks movement trajectories using temporal windows, classifies activities (`fall`, `walking`, `sitting`, `standing`, `normal`), and triggers instant emergency alerts[span_12](start_span)[span_12](end_span).
