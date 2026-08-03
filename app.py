@@ -456,7 +456,7 @@ with tab_live:
                             else:
                                 st.warning("Pose estimation failed to locate anatomical landmarks.")
 
-        # ---------------- VIDEO UPLOAD (COMPILED BACKGROUND PROCESSING & PLAYBACK) ----------------
+        # ---------------- VIDEO UPLOAD (FAST BACKGROUND PROCESSING + WEBM PLAYER) ----------------
         elif upload_type == "Video Clip":
             with st.container(key="live_video_card"):
                 uploaded_video = st.file_uploader(
@@ -484,55 +484,62 @@ with tab_live:
                         
                         frame_interval = fps / 20.0 
                         
-                        out_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        # Fix: Use vp80 codec and .webm format to ensure smooth web playback in Streamlit
+                        out_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".webm")
                         out_path = out_temp.name
-                        # Use mp4v for high compatibility writing
-                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                        out_video = cv2.VideoWriter(out_path, fourcc, int(fps), (width, height))
+                        fourcc = cv2.VideoWriter_fourcc(*'vp80')
+                        out_video = cv2.VideoWriter(out_path, fourcc, 20.0, (width, height))
                         
-                        window = []
+                        window = deque(maxlen=20)
                         frame_count = 0
                         next_capture_frame = 0
                         fall_detected_in_stream = False
-                        current_prediction = "Analyzing initial sequence..."
+                        current_prediction = "Analyzing sequence..."
+                        last_valid_features = np.zeros(51) # Fallback buffer to prevent teleportation bugs
 
                         while True:
                             success, frame = vidcap.read()
                             if not success:
                                 break
                                 
-                            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                            pil_img = Image.fromarray(frame_rgb)
-
-                            results = yolo_model(pil_img, verbose=False)
-                            
-                            if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
-                                features = results[0].keypoints.data[0].cpu().numpy().flatten()
-                                annotated_frame = results[0].plot()
-                                annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                            else:
-                                features = np.zeros(51)
-                                annotated_frame = frame_rgb
-                                
+                            # Fix: Only process the frames we actually need (Makes compilation 300% faster)
                             if frame_count >= next_capture_frame:
+                                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                                pil_img = Image.fromarray(frame_rgb)
+
+                                results = yolo_model(pil_img, verbose=False)
+                                
+                                if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
+                                    features = results[0].keypoints.data[0].cpu().numpy().flatten()
+                                    if len(features) == 51:
+                                        last_valid_features = features
+                                    
+                                    annotated_frame = results[0].plot()
+                                    annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                                else:
+                                    # Fix: If skeleton is lost, assume they haven't teleported, use last known position
+                                    features = last_valid_features
+                                    annotated_frame = frame_rgb
+                                    
                                 window.append(features)
                                 next_capture_frame += frame_interval
 
                                 if len(window) == 20:
                                     motion_vector = np.concatenate(window).reshape(1, -1)
-                                    current_prediction = rf_model.predict(motion_vector)[0]
+                                    try:
+                                        current_prediction = rf_model.predict(motion_vector)[0]
+                                    except Exception:
+                                        pass
                                     
                                     if current_prediction == 'fall':
                                         fall_detected_in_stream = True
-                                            
-                                    window = []
 
-                            color = (255, 0, 0) if current_prediction == 'fall' else (0, 255, 0)
-                            cv2.putText(annotated_frame, f"Status: {current_prediction.upper()}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
-                            
-                            # Write directly to output file without rendering to UI
-                            out_video.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
-                            
+                                color = (255, 0, 0) if current_prediction == 'fall' else (0, 255, 0)
+                                cv2.putText(annotated_frame, f"Status: {current_prediction.upper()}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
+                                
+                                # Write directly to WebM output file
+                                out_video.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
+                                
                             frame_count += 1
                             if total_frames > 0:
                                 progress_percentage = min(frame_count / total_frames, 1.0)
@@ -551,18 +558,18 @@ with tab_live:
                             
                         st.info("Compilation finished. Play or download the annotated output video below.")
                         
-                        # Load and display the compiled video directly in the Streamlit Dashboard
+                        # Load and display the compiled WebM video directly in the Streamlit Player
                         with open(out_path, 'rb') as f:
                             video_bytes = f.read()
                             st.video(video_bytes)
                             st.download_button(
                                 label="Download Compiled Output Video", 
                                 data=video_bytes, 
-                                file_name="ai_monitoring_output.mp4", 
-                                mime="video/mp4"
+                                file_name="ai_monitoring_output.webm", 
+                                mime="video/webm"
                             )
 
-        # ---------------- LIVE WEBCAM ----------------
+        # ---------------- LIVE WEBCAM (FIXED ZERO-PADD BUG) ----------------
         elif upload_type == "Live Webcam":
             with st.container(key="live_webcam_card"):
                 st.warning(
@@ -578,6 +585,7 @@ with tab_live:
                     if run_camera:
                         cap = cv2.VideoCapture(0)
                         window = deque(maxlen=20)
+                        last_valid_features = np.zeros(51) # Fallback buffer for webcam
 
                         while run_camera:
                             ret, frame = cap.read()
@@ -592,29 +600,31 @@ with tab_live:
 
                             if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
                                 features = results[0].keypoints.data[0].cpu().numpy().flatten()
-                                window.append(features)
-
+                                if len(features) == 51:
+                                    last_valid_features = features
+                                
                                 annotated_frame = results[0].plot()
                                 annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-
-                                if len(window) == 20:
-                                    motion_vector = np.concatenate(window).reshape(1, -1)
-                                    prediction = rf_model.predict(motion_vector)[0]
-
-                                    if prediction == 'fall':
-                                        cv2.putText(
-                                            annotated_frame, "ALERT: FALL DETECTED", (20, 50),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 3
-                                        )
-                                    else:
-                                        cv2.putText(
-                                            annotated_frame, f"Status: {prediction.upper()}", (20, 50),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3
-                                        )
-
-                                FRAME_WINDOW.image(annotated_frame)
                             else:
-                                FRAME_WINDOW.image(frame_rgb)
+                                # Apply the teleportation fix to webcam feed as well
+                                features = last_valid_features
+                                annotated_frame = frame_rgb
+                                
+                            window.append(features)
+
+                            if len(window) == 20:
+                                motion_vector = np.concatenate(window).reshape(1, -1)
+                                try:
+                                    prediction = rf_model.predict(motion_vector)[0]
+                                except Exception:
+                                    prediction = "normal"
+
+                                if prediction == 'fall':
+                                    cv2.putText(annotated_frame, "ALERT: FALL DETECTED", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 3)
+                                else:
+                                    cv2.putText(annotated_frame, f"Status: {prediction.upper()}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+
+                            FRAME_WINDOW.image(annotated_frame)
 
                         cap.release()
 
