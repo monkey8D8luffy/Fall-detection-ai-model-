@@ -395,7 +395,6 @@ with tab_live:
                 )
 
                 if uploaded_file is not None:
-                    # FIX: Read EXIF data and transpose to prevent portrait images from rendering sideways
                     image = Image.open(uploaded_file).convert("RGB")
                     image = ImageOps.exif_transpose(image)
                     
@@ -457,7 +456,7 @@ with tab_live:
                             else:
                                 st.warning("Pose estimation failed to locate anatomical landmarks.")
 
-        # ---------------- VIDEO UPLOAD (FULL DURATION WITH OUTPUT DOWNLOAD) ----------------
+        # ---------------- VIDEO UPLOAD (COMPILED BACKGROUND PROCESSING & PLAYBACK) ----------------
         elif upload_type == "Video Clip":
             with st.container(key="live_video_card"):
                 uploaded_video = st.file_uploader(
@@ -469,11 +468,10 @@ with tab_live:
                     tfile.write(uploaded_video.read())
                     video_path = tfile.name
 
-                    if model_loaded and st.button("Process Video Stream"):
+                    if model_loaded and st.button("Compile Video Prediction"):
                         st.session_state['total_scans'] += 1
                         
                         status_text = st.empty()
-                        video_placeholder = st.empty()
                         progress_bar = st.progress(0)
                         
                         vidcap = cv2.VideoCapture(video_path)
@@ -484,12 +482,11 @@ with tab_live:
                         
                         if fps <= 0: fps = 30
                         
-                        # Calculate interval to grab exactly 20 frames per video second
                         frame_interval = fps / 20.0 
                         
-                        # Prepare the VideoWriter to save the final annotated output
                         out_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                         out_path = out_temp.name
+                        # Use mp4v for high compatibility writing
                         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                         out_video = cv2.VideoWriter(out_path, fourcc, int(fps), (width, height))
                         
@@ -507,7 +504,6 @@ with tab_live:
                             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                             pil_img = Image.fromarray(frame_rgb)
 
-                            # Run YOLO on every frame for smooth video playback/writing
                             results = yolo_model(pil_img, verbose=False)
                             
                             if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
@@ -518,7 +514,6 @@ with tab_live:
                                 features = np.zeros(51)
                                 annotated_frame = frame_rgb
                                 
-                            # Only capture the specific frames needed for the 20-frame model
                             if frame_count >= next_capture_frame:
                                 window.append(features)
                                 next_capture_frame += frame_interval
@@ -529,37 +524,43 @@ with tab_live:
                                     
                                     if current_prediction == 'fall':
                                         fall_detected_in_stream = True
-                                        status_text.error("EMERGENCY ALERT: FALL DETECTED IN VIDEO STREAM!")
-                                    else:
-                                        if not fall_detected_in_stream:
-                                            status_text.success(f"Segment Status: {current_prediction.upper()}")
                                             
                                     window = []
 
                             color = (255, 0, 0) if current_prediction == 'fall' else (0, 255, 0)
                             cv2.putText(annotated_frame, f"Status: {current_prediction.upper()}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
                             
-                            # Render live frame to Streamlit and write to output file
-                            video_placeholder.image(annotated_frame, channels="RGB", use_container_width=True)
+                            # Write directly to output file without rendering to UI
                             out_video.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
                             
                             frame_count += 1
                             if total_frames > 0:
-                                progress_bar.progress(min(frame_count / total_frames, 1.0))
+                                progress_percentage = min(frame_count / total_frames, 1.0)
+                                progress_bar.progress(progress_percentage)
+                                status_text.markdown(f"**Processing video sequence:** {int(progress_percentage * 100)}% complete...")
                                 
                         vidcap.release()
                         out_video.release()
                         
                         if fall_detected_in_stream:
                             st.session_state['fall_count'] += 1
+                            status_text.error("EMERGENCY ALERT: FALL DETECTED IN VIDEO STREAM!")
                         else:
                             st.session_state['normal_count'] += 1
+                            status_text.success("Video processing complete. No falls detected.")
                             
-                        st.info("Video processing complete. You can download the annotated output below.")
+                        st.info("Compilation finished. Play or download the annotated output video below.")
                         
-                        # Provide direct download link for the generated output video
+                        # Load and display the compiled video directly in the Streamlit Dashboard
                         with open(out_path, 'rb') as f:
-                            st.download_button("Download Annotated Output Video", f, file_name="ai_monitoring_output.mp4", mime="video/mp4")
+                            video_bytes = f.read()
+                            st.video(video_bytes)
+                            st.download_button(
+                                label="Download Compiled Output Video", 
+                                data=video_bytes, 
+                                file_name="ai_monitoring_output.mp4", 
+                                mime="video/mp4"
+                            )
 
         # ---------------- LIVE WEBCAM ----------------
         elif upload_type == "Live Webcam":
@@ -782,7 +783,7 @@ with tab_about:
             1. **Pose Estimation** — YOLOv8 Pose extracts 17 anatomical keypoints.
             2. **Temporal Window** — Gathers sequences over time to evaluate trajectory.
             3. **Classification** — Random Forest model identifies 5 activity classes
-               (`fall`, `walking`, `sitting`, `standing`, `normal`).
+               (fall, walking, sitting, standing, normal).
             4. **Alert System** — Automatically generates emergency notifications when a
                fall is detected.
             """)
