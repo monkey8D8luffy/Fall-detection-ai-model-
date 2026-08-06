@@ -322,7 +322,7 @@ tab_live, tab_perf, tab_about = st.tabs(
 )
 
 # ============================================================
-# TAB 1 â LIVE DETECTION DASHBOARD
+# TAB 1 — LIVE DETECTION DASHBOARD
 # ============================================================
 with tab_live:
     if not model_loaded:
@@ -394,7 +394,7 @@ with tab_live:
                                         st.error("EMERGENCY ALERT: FALL DETECTED! Immediate caregiver intervention required.")
                                     else:
                                         st.session_state['normal_count'] += 1
-                                        st.success(f"Status Stable â Classified Activity: {prediction.upper()}")
+                                        st.success(f"Status Stable — Classified Activity: {prediction.upper()}")
 
                                     annotated_frame = results[0].plot()
                                     st.image(annotated_frame, caption="YOLOv8 Pose Estimation Keypoint Overlay", use_container_width=True)
@@ -403,7 +403,7 @@ with tab_live:
                             else:
                                 st.warning("Pose estimation failed to locate anatomical landmarks.")
 
-        # ---------------- VIDEO UPLOAD (WITH SPATIAL OVERRIDE, OVERALL SMOOTHING & H264 MP4 DOWNLOAD) ----------------
+        # ---------------- VIDEO UPLOAD ----------------
         elif upload_type == "Video Clip":
             with st.container(key="live_video_card"):
                 uploaded_video = st.file_uploader("Upload patient monitoring video sequence", type=["mp4", "avi", "mov"])
@@ -428,14 +428,13 @@ with tab_live:
                         
                         frame_interval = fps / 20.0 
                         
-                        # Generate raw OpenCV mp4
                         out_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                         raw_out_path = out_temp.name
                         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                         out_video = cv2.VideoWriter(raw_out_path, fourcc, int(fps), (width, height))
                         
                         window = deque(maxlen=20)
-                        prediction_history = deque(maxlen=15) # Used to create a smooth "Overall" prediction
+                        prediction_history = deque(maxlen=15)
                         
                         frame_count = 0
                         next_capture_frame = 0
@@ -452,21 +451,16 @@ with tab_live:
                             pil_img = Image.fromarray(frame_rgb)
                             results = yolo_model(pil_img, verbose=False)
                             
-                            valid_y, valid_x = [], []
-                            box_x1, box_y1 = 20, 50 # Default text position
+                            box_x1, box_y1 = 20, 50 
                             
                             if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
                                 features = results[0].keypoints.data[0].cpu().numpy().flatten()
                                 if len(features) == 51:
                                     last_valid_features = features
-                                    kpts_reshaped = features.reshape(17, 3)
-                                    valid_y = kpts_reshaped[:, 1][kpts_reshaped[:, 1] > 0]
-                                    valid_x = kpts_reshaped[:, 0][kpts_reshaped[:, 0] > 0]
                                     
                                 annotated_frame = results[0].plot()
                                 annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                                 
-                                # Extract bounding box to anchor label directly above the body
                                 if len(results[0].boxes) > 0:
                                     box = results[0].boxes.xyxy[0].cpu().numpy()
                                     box_x1, box_y1 = int(box[0]), int(box[1])
@@ -485,23 +479,12 @@ with tab_live:
                                     except Exception:
                                         current_prediction = "normal"
                                         
-                                    # --- SPATIAL PHYSICS OVERRIDE ---
-                                    # Prevents the AI from classifying a standing/walking person as a fall due to scale issues
-                                    if current_prediction == 'fall' and len(valid_y) > 0 and len(valid_x) > 0:
-                                        h = np.max(valid_y) - np.min(valid_y)
-                                        w = np.max(valid_x) - np.min(valid_x)
-                                        ratio = h / (w + 0.001)
-                                        if ratio > 1.2: # If the body is taller than it is wide
-                                            current_prediction = 'walking' 
-                                            
-                                    # Smoothing to establish the "Overall" frame prediction
                                     prediction_history.append(current_prediction)
                                     overall_prediction = max(set(prediction_history), key=prediction_history.count)
                                     
                                     if overall_prediction == 'fall':
                                         fall_detected_in_stream = True
 
-                            # Draw Label directly on the body
                             color = (255, 0, 0) if overall_prediction == 'fall' else (0, 255, 0)
                             text_pos = (max(10, box_x1), max(30, box_y1 - 10))
                             cv2.putText(annotated_frame, f"{overall_prediction.upper()}", text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
@@ -517,15 +500,13 @@ with tab_live:
                         vidcap.release()
                         out_video.release()
                         
-                        # --- FFMPEG CONVERSION TO BROWSER-NATIVE H264 MP4 ---
                         status_text.info("Encoding video to web-playable MP4 format...")
                         final_out_path = raw_out_path.replace(".mp4", "_encoded.mp4")
                         try:
-                            # Use FFmpeg to encode to h264 for perfect stream/download compatibility
                             subprocess.run(["ffmpeg", "-y", "-i", raw_out_path, "-vcodec", "libx264", final_out_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             play_path = final_out_path
                         except Exception:
-                            play_path = raw_out_path # Fallback if ffmpeg is missing on local machine
+                            play_path = raw_out_path 
                         
                         if fall_detected_in_stream:
                             st.session_state['fall_count'] += 1
@@ -534,7 +515,6 @@ with tab_live:
                             st.session_state['normal_count'] += 1
                             status_text.success("Video processing complete. No falls detected.")
                             
-                        # Load Video into UI Player
                         with open(play_path, 'rb') as f:
                             video_bytes = f.read()
                             st.video(video_bytes)
@@ -545,73 +525,70 @@ with tab_live:
                                 mime="video/mp4"
                             )
 
-        # ---------------- LIVE WEBCAM ----------------
+        # ---------------- LIVE WEBCAM (UNTHROTTLED HARDWARE WINDOW) ----------------
         elif upload_type == "Live Webcam":
             with st.container(key="live_webcam_card"):
-                st.warning("Note: Live webcam feed requires running this app locally via your terminal. It will not access your camera while hosted on Streamlit Cloud.")
-                if model_loaded:
-                    run_camera = st.checkbox("Turn On Webcam")
-                    FRAME_WINDOW = st.image([])
+                st.warning("Note: The camera feed will run as fast as your CPU can process the YOLOv8 model. A separate native window will open for the feed.")
+                if model_loaded and st.button("Launch Hardware Camera Feed"):
+                    cap = cv2.VideoCapture(0)
+                    
+                    window = deque(maxlen=20)
+                    prediction_history = deque(maxlen=15)
+                    last_valid_features = np.zeros(51)
 
-                    if run_camera:
-                        cap = cv2.VideoCapture(0)
-                        window = deque(maxlen=20)
-                        prediction_history = deque(maxlen=15)
-                        last_valid_features = np.zeros(51)
+                    st.info("Live feed running in a separate window. Click the window and press 'Q' to stop.")
 
-                        while run_camera:
-                            ret, frame = cap.read()
-                            if not ret: break
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret: 
+                            st.error("Failed to access webcam.")
+                            break
 
-                            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                            pil_img = Image.fromarray(frame_rgb)
-                            results = yolo_model(pil_img, verbose=False)
+                        # Process directly without any artificial time delays
+                        results = yolo_model(frame, verbose=False)
+                        
+                        box_x1, box_y1 = 20, 50
+
+                        if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
+                            features = results[0].keypoints.data[0].cpu().numpy().flatten()
+                            if len(features) == 51:
+                                last_valid_features = features
+                                
+                            annotated_frame = results[0].plot()
                             
-                            valid_y, valid_x = [], []
-                            box_x1, box_y1 = 20, 50
+                            if len(results[0].boxes) > 0:
+                                box = results[0].boxes.xyxy[0].cpu().numpy()
+                                box_x1, box_y1 = int(box[0]), int(box[1])
+                        else:
+                            features = last_valid_features
+                            annotated_frame = frame
+                            
+                        # Continually build the AI's temporal memory
+                        window.append(features)
 
-                            if len(results) > 0 and results[0].keypoints is not None and len(results[0].keypoints.data) > 0:
-                                features = results[0].keypoints.data[0].cpu().numpy().flatten()
-                                if len(features) == 51:
-                                    last_valid_features = features
-                                    kpts_reshaped = features.reshape(17, 3)
-                                    valid_y = kpts_reshaped[:, 1][kpts_reshaped[:, 1] > 0]
-                                    valid_x = kpts_reshaped[:, 0][kpts_reshaped[:, 0] > 0]
-                                    
-                                annotated_frame = results[0].plot()
-                                annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                                
-                                if len(results[0].boxes) > 0:
-                                    box = results[0].boxes.xyxy[0].cpu().numpy()
-                                    box_x1, box_y1 = int(box[0]), int(box[1])
-                            else:
-                                features = last_valid_features
-                                annotated_frame = frame_rgb
-                                
-                            window.append(features)
+                        overall_prediction = "ANALYZING"
+                        if len(window) == 20:
+                            motion_vector = np.concatenate(window).reshape(1, -1)
+                            try:
+                                prediction = rf_model.predict(motion_vector)[0]
+                            except Exception:
+                                prediction = "normal"
 
-                            if len(window) == 20:
-                                motion_vector = np.concatenate(window).reshape(1, -1)
-                                try:
-                                    prediction = rf_model.predict(motion_vector)[0]
-                                except Exception:
-                                    prediction = "normal"
+                            prediction_history.append(prediction)
+                            overall_prediction = max(set(prediction_history), key=prediction_history.count)
 
-                                if prediction == 'fall' and len(valid_y) > 0 and len(valid_x) > 0:
-                                    h = np.max(valid_y) - np.min(valid_y)
-                                    w = np.max(valid_x) - np.min(valid_x)
-                                    if h / (w + 0.001) > 1.2: 
-                                        prediction = 'walking'
+                        color = (0, 0, 255) if overall_prediction == 'fall' else (0, 255, 0)
+                        text_pos = (max(10, box_x1), max(30, box_y1 - 10))
+                        
+                        cv2.putText(annotated_frame, overall_prediction.upper(), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
 
-                                prediction_history.append(prediction)
-                                overall_prediction = max(set(prediction_history), key=prediction_history.count)
-
-                                color = (255, 0, 0) if overall_prediction == 'fall' else (0, 255, 0)
-                                text_pos = (max(10, box_x1), max(30, box_y1 - 10))
-                                cv2.putText(annotated_frame, overall_prediction.upper(), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
-
-                            FRAME_WINDOW.image(annotated_frame)
-                        cap.release()
+                        cv2.imshow("AI Fall Detection - Native Feed (Press 'Q' to exit)", annotated_frame)
+                        
+                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                            break
+                            
+                    cap.release()
+                    cv2.destroyAllWindows()
 
     with right:
         with st.container(key="live_insights_card"):
@@ -641,7 +618,7 @@ with tab_live:
             st.markdown("Tip: For best pose detection accuracy, ensure the full body is visible and well-lit in the frame.")
 
 # ============================================================
-# TAB 2 â MODEL PERFORMANCE & METRICS
+# TAB 2 — MODEL PERFORMANCE & METRICS
 # ============================================================
 with tab_perf:
     st.markdown("### Model Evaluation & Validation Metrics")
@@ -697,7 +674,7 @@ with tab_perf:
                 st.warning("Class distribution chart not found.")
 
 # ============================================================
-# TAB 3 â PROJECT OVERVIEW & MAINTENANCE
+# TAB 3 — PROJECT OVERVIEW & MAINTENANCE
 # ============================================================
 with tab_about:
     with st.container(key="about_hero_card"):
@@ -717,8 +694,8 @@ with tab_about:
         with st.container(key="about_architecture_card"):
             st.markdown("""
             **System Architecture**
-            1. **Pose Estimation** â YOLOv8 Pose extracts 17 anatomical keypoints.
-            2. **Temporal Window** â Gathers sequences over time to evaluate trajectory.
-            3. **Classification** â Random Forest model identifies 5 activity classes.
-            4. **Alert System** â Automatically generates emergency notifications.
+            1. **Pose Estimation** — YOLOv8 Pose extracts 17 anatomical keypoints.
+            2. **Temporal Window** — Gathers sequences over time to evaluate trajectory.
+            3. **Classification** — Random Forest model identifies 5 activity classes.
+            4. **Alert System** — Automatically generates emergency notifications.
             """)
