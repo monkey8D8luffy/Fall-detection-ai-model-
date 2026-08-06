@@ -7,6 +7,7 @@ import cv2
 import tempfile
 import os
 import subprocess
+import time
 from collections import deque
 import plotly.graph_objects as go
 
@@ -525,27 +526,37 @@ with tab_live:
                                 mime="video/mp4"
                             )
 
-        # ---------------- LIVE WEBCAM (UNTHROTTLED HARDWARE WINDOW) ----------------
+        # ---------------- LIVE WEBCAM (CPU-OPTIMIZED HARDWARE WINDOW) ----------------
         elif upload_type == "Live Webcam":
             with st.container(key="live_webcam_card"):
-                st.warning("Note: The camera feed will run as fast as your CPU can process the YOLOv8 model. A separate native window will open for the feed.")
+                st.warning("Note: Unthrottled AI requires a GPU. This version is CPU-optimized for standard hardware.")
                 if model_loaded and st.button("Launch Hardware Camera Feed"):
                     cap = cv2.VideoCapture(0)
+                    
+                    # OPTIMIZATION 1: Downscale the camera resolution to reduce load
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                     
                     window = deque(maxlen=20)
                     prediction_history = deque(maxlen=15)
                     last_valid_features = np.zeros(51)
 
                     st.info("Live feed running in a separate window. Click the window and press 'Q' to stop.")
+                    
+                    # Define target frames per second to allow CPU to breathe
+                    target_fps = 20
+                    frame_duration = 1.0 / target_fps
 
                     while True:
+                        loop_start = time.time()
+                        
                         ret, frame = cap.read()
                         if not ret: 
                             st.error("Failed to access webcam.")
                             break
 
-                        # Process directly without any artificial time delays
-                        results = yolo_model(frame, verbose=False)
+                        # OPTIMIZATION 2: Add imgsz=320 to run YOLO roughly 4x faster on standard CPUs
+                        results = yolo_model(frame, verbose=False, imgsz=320)
                         
                         box_x1, box_y1 = 20, 50
 
@@ -563,7 +574,6 @@ with tab_live:
                             features = last_valid_features
                             annotated_frame = frame
                             
-                        # Continually build the AI's temporal memory
                         window.append(features)
 
                         overall_prediction = "ANALYZING"
@@ -581,10 +591,13 @@ with tab_live:
                         text_pos = (max(10, box_x1), max(30, box_y1 - 10))
                         
                         cv2.putText(annotated_frame, overall_prediction.upper(), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, color, 3)
-
                         cv2.imshow("AI Fall Detection - Native Feed (Press 'Q' to exit)", annotated_frame)
                         
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                        # OPTIMIZATION 3: Intelligent sleep to cap the frame rate and prevent CPU freezing
+                        elapsed = time.time() - loop_start
+                        sleep_time = max(1, int((frame_duration - elapsed) * 1000))
+                        
+                        if cv2.waitKey(sleep_time) & 0xFF == ord('q'):
                             break
                             
                     cap.release()
