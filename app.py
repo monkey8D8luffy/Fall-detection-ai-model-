@@ -322,7 +322,7 @@ tab_live, tab_perf, tab_about = st.tabs(
 )
 
 # ============================================================
-# TAB 1 — LIVE DETECTION DASHBOARD
+# TAB 1 â LIVE DETECTION DASHBOARD
 # ============================================================
 with tab_live:
     if not model_loaded:
@@ -394,7 +394,7 @@ with tab_live:
                                         st.error("EMERGENCY ALERT: FALL DETECTED! Immediate caregiver intervention required.")
                                     else:
                                         st.session_state['normal_count'] += 1
-                                        st.success(f"Status Stable — Classified Activity: {prediction.upper()}")
+                                        st.success(f"Status Stable â Classified Activity: {prediction.upper()}")
 
                                     annotated_frame = results[0].plot()
                                     st.image(annotated_frame, caption="YOLOv8 Pose Estimation Keypoint Overlay", use_container_width=True)
@@ -641,7 +641,7 @@ with tab_live:
             st.markdown("Tip: For best pose detection accuracy, ensure the full body is visible and well-lit in the frame.")
 
 # ============================================================
-# TAB 2 — MODEL PERFORMANCE & METRICS
+# TAB 2 â MODEL PERFORMANCE & METRICS
 # ============================================================
 with tab_perf:
     st.markdown("### Model Evaluation & Validation Metrics")
@@ -697,7 +697,7 @@ with tab_perf:
                 st.warning("Class distribution chart not found.")
 
 # ============================================================
-# TAB 3 — PROJECT OVERVIEW & MAINTENANCE
+# TAB 3 â PROJECT OVERVIEW & MAINTENANCE
 # ============================================================
 with tab_about:
     with st.container(key="about_hero_card"):
@@ -717,8 +717,8 @@ with tab_about:
         with st.container(key="about_architecture_card"):
             st.markdown("""
             **System Architecture**
-            1. **Pose Estimation** — YOLOv8 Pose extracts 17 anatomical keypoints.
-            2. **Temporal Window** — Gathers sequences over time to evaluate trajectory.
-            3. **Classification** — Random Forest model identifies 5 activity classes.
-            4. **Alert System** — Automatically generates emergency notifications.
+            1. **Pose Estimation** â YOLOv8 Pose extracts 17 anatomical keypoints.
+            2. **Temporal Window** â Gathers sequences over time to evaluate trajectory.
+            3. **Classification** â Random Forest model identifies 5 activity classes.
+            4. **Alert System** â Automatically generates emergency notifications.
             """)
