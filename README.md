@@ -1,23 +1,67 @@
-# 🛡️ AI-Powered Elderly Fall Detection System 
+# 🛡️ SafeFall AI — Elderly Fall Detection & Healthcare Monitoring System
 
-## Project Overview
-Developed as part of the International Baccalaureate Career-related Programme (IBCP) Artificial Intelligence coursework, this project builds and deploys an end-to-end computer vision and machine learning healthcare monitoring dashboard[span_11](start_span)[span_11](end_span). The system detects elderly postures, tracks movement trajectories using temporal windows, classifies activities (`fall`, `walking`, `sitting`, `standing`, `normal`), and triggers instant emergency alerts[span_12](start_span)[span_12](end_span).
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://o9rxmeapp9mnskqwqqzfc9.streamlit.app/)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
+[![YOLOv8 Pose](https://img.shields.io/badge/YOLOv8-Pose%20Estimation-orange.svg)](https://github.com/ultralytics/ultralytics)
+[![Scikit-Learn](https://img.shields.io/badge/Model-Random%20Forest-green.svg)](https://scikit-learn.org/)
 
-## Features Included
-* **Real-Time Pose Estimation:** Powered by YOLOv8 Pose to map anatomical body keypoints[span_13](start_span)[span_13](end_span).
-* **Temporal Sequence Analysis:** Evaluates movement over multi-frame sliding windows (20-frame configuration) to accurately distinguish dynamic activities like walking from static postures.
-* **Emergency Alert System:** Automatically displays high-priority warning notifications when a fall incident is classified[span_14](start_span)[span_14](end_span).
-* **Interactive Streamlit Dashboard:** Supports image and video file uploads, visualizes tracking analytics, and displays prediction confidence scores[span_15](start_span)[span_15](end_span).
-* **Rigorous Evaluation Metrics:** Integrates overall accuracy, precision, recall, F1-score tables, confusion matrices, and distribution charts[span_16](start_span)[span_16](end_span).
+> **Real-Time Pose Intelligence for Contactless Elderly Safety Monitoring**  
+> Developed as part of the **International Baccalaureate Career-related Programme (IBCP) — Artificial Intelligence** coursework at **Ryan Global School, Kharghar**.
 
-## Repository Structure
-* `app.py`: Main Streamlit cloud web application code.
-* `requirements.txt`: Python package dependencies.
-* `elderly_fall_20frame_model.pkl`: Trained Random Forest temporal classification model artifact.
-* `confusion_matrix_final.png` & `activity_class_distribution.png`: Evaluation charts for model analysis.
+🔗 **Live Streamlit Dashboard:** [Launch SafeFall AI Web App](https://o9rxmeapp9mnskqwqqzfc9.streamlit.app/)  
+💻 **GitHub Repository:** [monkey8D8luffy/Fall-detection-ai-model-](https://github.com/monkey8D8luffy/Fall-detection-ai-model-)
 
-## Local Installation & Execution
-1. Clone the repository or download project files.
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
+---
+
+## 📌 Project Overview
+
+Unassisted falls among senior citizens living alone are one of the leading causes of severe trauma and delayed medical emergencies ("long-lie" incidents). Traditional wearable pendants are frequently forgotten, uncharged, or unusable if the wearer is rendered unconscious, while standard CCTV cameras only offer passive recording without active alerting.
+
+**SafeFall AI** is an end-to-end computer vision and machine learning monitoring system that detects falls in real time using standard indoor cameras—requiring zero wearable hardware. By combining **YOLOv8 Pose Estimation** (`17 anatomical keypoints`) with a **Random Forest Classifier** operating on **20-frame temporal sliding windows**, the system tracks biomechanical movement trajectories across five activity states:
+* 🚨 **`fall`** *(Emergency Alert Triggered)*
+* 🚶 **`walking`**
+* 🪑 **`sitting`**
+* 🧍 **`standing`**
+* ✅ **`normal`** *(General non-fall floor/bending movements)*
+
+---
+
+## ✨ Key Features
+
+* **Real-Time 17-Keypoint Pose Estimation:** Powered by `YOLOv8-Pose` (`yolov8n-pose.pt`) to localize human bounding boxes and map 17 COCO skeletal joints per frame while preserving patient privacy.
+* **20-Frame Temporal Window Analysis:** Evaluates continuous movement over 20-frame sliding windows (~0.8 seconds at 25 FPS) to track vertical hip drop velocity, spine inclination angle, and bounding-box aspect ratio inversions—preventing false alarms during controlled sitting or bending.
+* **Two-Stage Hybrid Dataset Curation:** Trained and evaluated on **29,261 twenty-frame sequences** extracted from the **Le2i Fall Detection Dataset**, curated using an automated baseline AI pre-classifier followed by a manual human-in-the-loop quality audit.
+* **Automated Emergency Alert System:** Immediately renders high-priority visual warning banners and logs session telemetry whenever a fall trajectory is confirmed.
+* **3-Tab Interactive Streamlit Dashboard:**
+  * **Tab 1 (`Live Detection`):** Supports uploading **Image Frames** (`JPG/PNG`), **Video Clips** (`MP4/AVI/MOV`), or launching a CPU-optimized **Live Webcam** feed with real-time YOLOv8 skeletal overlays.
+  * **Tab 2 (`Model Performance`):** Displays validation KPI cards, an interactive accuracy gauge chart, and per-class detection metrics.
+  * **Tab 3 (`Project Overview`):** Summarizes student credentials and the 4-stage system architecture.
+
+---
+
+## 🧠 System Architecture
+
+```text
+[Input Video / Image / Live Webcam Stream]
+                    │
+                    ▼
+   [OpenCV 20-Frame Sliding Window Buffer]
+   (Resized to 224×224 │ Normalized 0–1)
+                    │
+                    ▼
+      [YOLOv8 Pose Estimation Backbone]
+ (Extracts Person Bounding Box + 17 Keypoints)
+                    │
+                    ▼
+   [Biomechanical Trajectory Feature Engine]
+ (Hip Velocity + Spine Angle + Aspect Ratio)
+                    │
+                    ▼
+    [Random Forest Temporal Classifier]
+   (Predicts: Fall, Walking, Sitting, Standing, Normal)
+                    │
+        ┌───────────┴───────────┐
+        ▼                       ▼
+ [FALL DETECTED]         [NORMAL ACTIVITY]
+Triggers Emergency      Updates Safe Session
+  Caregiver Alert          Telemetry KPIs
